@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -17,25 +17,25 @@ var (
 	analyticsSvc *analyticsreporting.Service
 )
 
-func main() {
+func init() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		panic("Error loading .env file")
 	}
 
 	ctx := context.Background()
-
 	initAnalytics(ctx)
+}
 
-	http.HandleFunc("/report", getReportHandler)
-	http.HandleFunc("/customReport", getCustomReportHandler)
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+func Handler(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/report":
+		getReportHandler(w, r)
+	case "/customReport":
+		getCustomReportHandler(w, r)
+	default:
+		http.NotFound(w, r)
 	}
-	log.Printf("Server listening on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 func initAnalytics(ctx context.Context) {
