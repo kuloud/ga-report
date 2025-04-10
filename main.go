@@ -18,9 +18,8 @@ var (
 )
 
 func init() {
-	err := godotenv.Load()
-	if err != nil {
-		panic("Error loading .env file")
+	if err := godotenv.Load(); err != nil {
+		log.Print("No .env file found")
 	}
 
 	ctx := context.Background()
