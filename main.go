@@ -40,11 +40,11 @@ func main() {
 
 func initAnalytics(ctx context.Context) {
 	var err error
-	credPath := os.Getenv("GA_CREDENTIALS_PATH")
-	if credPath == "" {
-		log.Fatal("GA_CREDENTIALS_PATH environment variable is required")
+	gac := os.Getenv("GA_CREDENTIALS")
+	if gac == "" {
+		log.Fatal("GA_CREDENTIALS environment variable is required")
 	}
-	analyticsSvc, err = analyticsreporting.NewService(ctx, option.WithCredentialsFile(credPath))
+	analyticsSvc, err = analyticsreporting.NewService(ctx, option.WithCredentialsJSON([]byte(gac)))
 	if err != nil {
 		log.Fatalf("Failed to create Analytics service: %v", err)
 	}
@@ -100,12 +100,12 @@ func getAnalyticsReport(ctx context.Context) (string, error) {
 func getCustomReportHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	credPath := os.Getenv("GA_CREDENTIALS_PATH")
-	if credPath == "" {
-		log.Fatal("GA_CREDENTIALS_PATH environment variable is required")
+	gac := os.Getenv("GA_CREDENTIALS")
+	if gac == "" {
+		log.Fatal("GA_CREDENTIALS environment variable is required")
 	}
 
-	client, err := analyticsdata.NewService(ctx, option.WithCredentialsFile(credPath))
+	client, err := analyticsdata.NewService(ctx, option.WithCredentialsJSON([]byte(gac)))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
