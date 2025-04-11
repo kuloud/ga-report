@@ -7,20 +7,25 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/joho/godotenv"
 	analyticsdata "google.golang.org/api/analyticsdata/v1beta"
 	"google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 )
 
 var (
-	analyticsSvc *analyticsreporting.Service
+	analyticsSvc     *analyticsreporting.Service
+	analyticsDataSvc *analyticsdata.Service
+)
+
+const (
+	// Define the required scope for Analytics APIs
+	analyticsScope = "https://www.googleapis.com/auth/analytics.readonly"
 )
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Print("No .env file found")
-	}
+	// if err := godotenv.Load(); err != nil {
+	// 	log.Print("No .env file found")
+	// }
 
 	ctx := context.Background()
 	initAnalytics(ctx)
@@ -38,14 +43,23 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func initAnalytics(ctx context.Context) {
-	var err error
 	gac := os.Getenv("GA_CREDENTIALS")
 	if gac == "" {
 		log.Fatal("GA_CREDENTIALS environment variable is required")
 	}
-	analyticsSvc, err = analyticsreporting.NewService(ctx, option.WithCredentialsJSON([]byte(gac)))
+	log.Printf("GA_CREDENTIALS: %s", gac)
+
+	var err error
+	// Initialize Analytics Reporting API (v4) for Universal Analytics
+	analyticsSvc, err = analyticsreporting.NewService(ctx, option.WithCredentialsJSON([]byte(gac)), option.WithScopes(analyticsScope))
 	if err != nil {
-		log.Fatalf("Failed to create Analytics service: %v", err)
+		log.Fatalf("Failed to create Analytics Reporting service: %v", err)
+	}
+
+	// Initialize Analytics Data API (v1beta) for GA4
+	analyticsDataSvc, err = analyticsdata.NewService(ctx, option.WithCredentialsJSON([]byte(gac)), option.WithScopes(analyticsScope))
+	if err != nil {
+		log.Fatalf("Failed to create Analytics Data service: %v", err)
 	}
 }
 
@@ -63,9 +77,10 @@ func getReportHandler(w http.ResponseWriter, r *http.Request) {
 func getAnalyticsReport(ctx context.Context) (string, error) {
 	viewId := os.Getenv("GA_VIEW_ID")
 	if viewId == "" {
-		log.Fatal("GA_VIEW_ID environment variable is required")
+		return "", http.ErrMissingFile // Avoid log.Fatal in a handler
 	}
 	log.Printf("Fetching report for view ID: %s", viewId)
+
 	req := &analyticsreporting.GetReportsRequest{
 		ReportRequests: []*analyticsreporting.ReportRequest{
 			{
@@ -97,22 +112,11 @@ func getAnalyticsReport(ctx context.Context) (string, error) {
 }
 
 func getCustomReportHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	gac := os.Getenv("GA_CREDENTIALS")
-	if gac == "" {
-		log.Fatal("GA_CREDENTIALS environment variable is required")
-	}
-
-	client, err := analyticsdata.NewService(ctx, option.WithCredentialsJSON([]byte(gac)))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
 	propertyID := os.Getenv("GA_PROPERTY_ID")
 	if propertyID == "" {
-		log.Fatal("GA_PROPERTY_ID environment variable is required")
+		http.Error(w, "GA_PROPERTY_ID environment variable is required", http.StatusInternalServerError)
+		return
 	}
 
 	req := &analyticsdata.RunReportRequest{
@@ -130,7 +134,7 @@ func getCustomReportHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	resp, err := client.Properties.RunReport("properties/"+propertyID, req).Do()
+	resp, err := analyticsDataSvc.Properties.RunReport("properties/"+propertyID, req).Do()
 	if err != nil {
 		log.Printf("Error fetching GA4 report: %v", err)
 		http.Error(w, "Failed to fetch report: "+err.Error(), http.StatusInternalServerError)
